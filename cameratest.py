@@ -1,27 +1,12 @@
-import cv2
+import subprocess
+
 def capture_image(output_file):
-    # Open the camera
-    camera = cv2.VideoCapture(0)
-
-    # Check if the camera is opened successfully
-    if not camera.isOpened():
-        print("Error: Unable to open camera")
-        return
-
-    # Capture frame-by-frame
-    ret, frame = camera.read()
-
-    # Release the camera
-    camera.release()
-
-    # Check if the frame is captured successfully
-    if not ret:
-        print("Error: Unable to capture frame")
-        return
-
-    # Save the captured frame to the output file
-    cv2.imwrite(output_file, frame)
-    print("Image captured and saved to", output_file)
+    # Use the libcamera command-line tool to capture an image
+    try:
+        subprocess.run(["raspistill", "-o", output_file])
+        print("Image captured and saved to", output_file)
+    except Exception as e:
+        print("Error:", e)
 
 if __name__ == "__main__":
     output_file = "image.jpg"  # Specify the output file name
