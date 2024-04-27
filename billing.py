@@ -22,7 +22,8 @@ c_value = 0
 flag = 0
 ratio = -1363.992
 
-global id_product = 1
+id_product = 1  # Initialize the global variable outside of any function or scope
+
 list_label = []
 list_weight = []
 count = 0
@@ -100,8 +101,8 @@ def find_weight():
 
 
 def post(label, price, final_rate, taken):
-    global id
-    url = "https://automaticbilling.herokuapp.com/product"
+    global id_product
+    url = "http://192.168.87.224:5000/"
     headers = CaseInsensitiveDict()
     headers["Content-Type"] = "application/json"
     data_dict = {"id": id_product, "name": label, "price": price,
