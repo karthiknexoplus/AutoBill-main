@@ -25,7 +25,7 @@ show_camera = True
 
 c_value = 0
 flag = 0
-ratio = -1363.992
+ratio = 107.3333
 
 id_product = 1  # Initialize the global variable outside of any function or scope
 
