@@ -6,6 +6,7 @@ import sys
 import getopt
 import signal
 import time
+import logging
 from edge_impulse_linux.image import ImageImpulseRunner
 
 import RPi.GPIO as GPIO
@@ -14,6 +15,10 @@ from hx711 import HX711
 import requests
 import json
 from requests.structures import CaseInsensitiveDict
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 runner = None
 show_camera = True
@@ -43,7 +48,7 @@ def now():
 def get_webcams():
     port_ids = []
     for port in range(5):
-        print("Looking for a camera in port %s:" % port)
+        logger.info("Looking for a camera in port %s:" % port)
         camera = cv2.VideoCapture(port)
         if camera.isOpened():
             ret = camera.read()[0]
@@ -51,15 +56,15 @@ def get_webcams():
                 backendName = camera.getBackendName()
                 w = camera.get(3)
                 h = camera.get(4)
-                print("Camera %s (%s x %s) found in port %s " %
-                      (backendName, h, w, port))
+                logger.info("Camera %s (%s x %s) found in port %s " %
+                            (backendName, h, w, port))
                 port_ids.append(port)
             camera.release()
     return port_ids
 
 
 def sigint_handler(sig, frame):
-    print('Interrupted')
+    logger.info('Interrupted')
     if (runner):
         runner.stop()
     sys.exit(0)
@@ -69,14 +74,14 @@ signal.signal(signal.SIGINT, sigint_handler)
 
 
 def help():
-    print('python classify.py <path_to_model.eim> <Camera port ID, only required when more than 1 camera is present>')
+    logger.info('python classify.py <path_to_model.eim> <Camera port ID, only required when more than 1 camera is present>')
 
 
 def find_weight():
     global c_value
     global hx
     if c_value == 0:
-        print('Calibration starts')
+        logger.info('Calibration starts')
         try:
             GPIO.setmode(GPIO.BCM)
             hx = HX711(dout_pin=20, pd_sck_pin=21)
@@ -86,18 +91,17 @@ def find_weight():
             hx.set_scale_ratio(ratio)
             c_value = 1
         except (KeyboardInterrupt, SystemExit):
-            print('Bye :)')
-        print('Calibrate ends')
+            logger.info('Bye :)')
+        logger.info('Calibrate ends')
     else:
         GPIO.setmode(GPIO.BCM)
         time.sleep(1)
         try:
             weight = int(hx.get_weight_mean(20))
-            # round(weight,1)
-            print(weight, 'g')
+            logger.info('%sg' % weight)
             return weight
         except (KeyboardInterrupt, SystemExit):
-            print('Bye :)')
+            logger.info('Bye :)')
 
 
 def post(label, price, final_rate, taken):
@@ -109,7 +113,7 @@ def post(label, price, final_rate, taken):
                  "units": "units", "taken": taken, "payable": final_rate}
     data = json.dumps(data_dict)
     resp = requests.post(url, headers=headers, data=data)
-    print(resp.status_code)
+    logger.info(resp.status_code)
     id_product = id_product + 1
     time.sleep(1)
     list_label = []
@@ -128,34 +132,34 @@ def list_com(label, final_weight):
             taken = taken + 1
     list_label.append(label)
     count = count + 1
-    print('count is', count)
+    logger.info('count is %s' % count)
     time.sleep(1)
     if count > 1:
         if list_label[-1] != list_label[-2]:
-            print("New Item detected")
-            print("Final weight is", list_weight[-1])
+            logger.info("New Item detected")
+            logger.info("Final weight is %s" % list_weight[-1])
             rate(list_weight[-2], list_label[-2], taken)
 
 
 def rate(final_weight, label, taken):
-    print("Calculating rate")
+    logger.info("Calculating rate")
     if label == a:
-        print("Calculating rate of", label)
+        logger.info("Calculating rate of %s" % label)
         final_rate_a = final_weight * 0.01
         price = 10
         post(label, price, final_rate_a, taken)
     elif label == b:
-        print("Calculating rate of", label)
+        logger.info("Calculating rate of %s" % label)
         final_rate_b = final_weight * 0.02
         price = 20
         post(label, price, final_rate_b, taken)
     elif label == l:
-        print("Calculating rate of", label)
+        logger.info("Calculating rate of %s" % label)
         final_rate_l = 1
         price = 1
         post(label, price, final_rate_l, taken)
     else:
-        print("Calculating rate of", label)
+        logger.info("Calculating rate of %s" % label)
         final_rate_c = 2
         price = 2
         post(label, price, final_rate_c, taken)
@@ -186,13 +190,12 @@ def main(argv):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     modelfile = os.path.join(dir_path, model)
 
-    print('MODEL: ' + modelfile)
+    logger.info('MODEL: ' + modelfile)
 
     with ImageImpulseRunner(modelfile) as runner:
         try:
             model_info = runner.init()
-            print('Loaded runner for "' +
-                  model_info['project']['owner'] + ' / ' + model_info['project']['name'] + '"')
+            logger.info('Loaded runner for "%s / %s"' % (model_info['project']['owner'], model_info['project']['name']))
             labels = model_info['model_parameters']['labels']
             if len(args) >= 2:
                 videoCaptureDeviceId = int(args[1])
@@ -211,8 +214,8 @@ def main(argv):
                 backendName = camera.getBackendName()
                 w = camera.get(3)
                 h = camera.get(4)
-                print("Camera %s (%s x %s) in port %s selected." %
-                      (backendName, h, w, videoCaptureDeviceId))
+                logger.info("Camera %s (%s x %s) in port %s selected." %
+                            (backendName, h, w, videoCaptureDeviceId))
                 camera.release()
             else:
                 raise Exception("Couldn't initialize selected camera.")
@@ -223,25 +226,22 @@ def main(argv):
                 if (next_frame > now()):
                     time.sleep((next_frame - now()) / 1000)
 
-                # print('classification runner response', res)
-
                 if "classification" in res["result"].keys():
-                    print('Result (%d ms.) ' % (
-                        res['timing']['dsp'] + res['timing']['classification']), end='')
+                    logger.info('Result (%d ms.) ' % (res['timing']['dsp'] + res['timing']['classification']))
                     for label in labels:
                         score = res['result']['classification'][label]
                         if score > 0.9:
                             final_weight = find_weight()
                             list_com(label, final_weight)
                             if label == a:
-                                print('Apple detected')
+                                logger.info('Apple detected')
                             elif label == b:
-                                print('Banana detected')
+                                logger.info('Banana detected')
                             elif label == l:
-                                print('Lays deteccted')
+                                logger.info('Lays detected')
                             else:
-                                print('Coke detected')
-                    print('', flush=True)
+                                logger.info('Coke detected')
+                    logger.info('')
                 next_frame = now() + 100
         finally:
             if (runner):
